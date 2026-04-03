@@ -79,15 +79,33 @@ export class UserController {
     }
 
     async handlePurchaseRemove({ userId, product }) {
-        const user = await this.#userService.getUserById(userId);
-        const index = user.purchases.findIndex(item => item.id === product.id);
+        try {
+            const persistResult = await this.#userService.removePurchaseFromSupabase(userId, product.id);
 
-        if (index !== -1) {
-            user.purchases.splice(index, 1); // directly remove one item at the found index
-            await this.#userService.updateUser(user);
+            const user = await this.#userService.getUserById(userId);
+            const index = user.purchases.findIndex(item => item.id === product.id);
 
-            const updatedUsers = await this.#userService.getUsers();
-            this.#events.dispatchUsersUpdated({ users: updatedUsers });
+            if (index !== -1) {
+                user.purchases.splice(index, 1);
+                await this.#userService.updateUser(user);
+
+                const updatedUsers = await this.#userService.getUsers();
+                this.#events.dispatchUsersUpdated({ users: updatedUsers });
+            }
+
+            if (!persistResult || !persistResult.success) {
+                console.warn('Compra removida localmente, mas falha ao remover do Supabase', persistResult?.error);
+            }
+        } catch (err) {
+            console.error('Erro ao remover compra:', err);
+            const user = await this.#userService.getUserById(userId);
+            const index = user.purchases.findIndex(item => item.id === product.id);
+            if (index !== -1) {
+                user.purchases.splice(index, 1);
+                await this.#userService.updateUser(user);
+                const updatedUsers = await this.#userService.getUsers();
+                this.#events.dispatchUsersUpdated({ users: updatedUsers });
+            }
         }
     }
 

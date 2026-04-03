@@ -85,6 +85,25 @@ export class UserService {
         }
     }
 
+    async removePurchaseFromSupabase(userId, productId) {
+        try {
+            const { data, error } = await supabase
+                .from('user_product')
+                .delete()
+                .match({ user_id: userId, product_id: productId });
+
+            if (error) {
+                console.error('Erro ao remover compra no Supabase:', error);
+                return { success: false, error };
+            }
+
+            return { success: true, data };
+        } catch (err) {
+            console.error('Erro inesperado ao remover compra no Supabase:', err);
+            return { success: false, error: err };
+        }
+    }
+
     async getUsers() {
         const users = this.#getStorage();
         return users;
