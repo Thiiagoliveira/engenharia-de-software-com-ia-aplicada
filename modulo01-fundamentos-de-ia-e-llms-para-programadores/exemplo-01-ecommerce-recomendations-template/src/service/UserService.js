@@ -67,12 +67,21 @@ export class UserService {
 
     async addPurchaseToSupabase(userId, productId) {
         const payload = [{ user_id: userId, product_id: productId }];
-        const { error } = await supabase
-            .from('user_product')
-            .upsert(payload, { onConflict: 'user_id,product_id' });
+        try {
+            const { data, error } = await supabase
+                .from('user_product')
+                .upsert(payload, { onConflict: ['user_id', 'product_id'] })
+                .select();
 
-        if (error) {
-            console.error('Erro ao salvar compra no Supabase:', error);
+            if (error) {
+                console.error('Erro ao salvar compra no Supabase:', error);
+                return { success: false, error };
+            }
+
+            return { success: true, data };
+        } catch (err) {
+            console.error('Erro inesperado ao salvar compra no Supabase:', err);
+            return { success: false, error: err };
         }
     }
 

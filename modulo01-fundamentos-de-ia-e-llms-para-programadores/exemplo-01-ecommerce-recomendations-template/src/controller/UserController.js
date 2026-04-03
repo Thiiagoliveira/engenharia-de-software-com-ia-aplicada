@@ -52,17 +52,30 @@ export class UserController {
     }
 
     async handlePurchaseAdded({ user, product }) {
-        const updatedUser = await this.#userService.getUserById(user.id);
-        updatedUser.purchases.push({
-            ...product
-        })
+        try {
+            const persistResult = await this.#userService.addPurchaseToSupabase(user.id, product.id);
 
-        await this.#userService.updateUser(updatedUser);
-        this.#userService.addPurchaseToSupabase(user.id, product.id);
+            const updatedUser = (await this.#userService.getUserById(user.id)) || { ...user, purchases: [] };
+            updatedUser.purchases.push({ ...product });
 
-        const lastPurchase = updatedUser.purchases[updatedUser.purchases.length - 1];
-        this.#userView.addPastPurchase(lastPurchase);
-        this.#events.dispatchUsersUpdated({ users: await this.#userService.getUsers() });
+            await this.#userService.updateUser(updatedUser);
+
+            const lastPurchase = updatedUser.purchases[updatedUser.purchases.length - 1];
+            this.#userView.addPastPurchase(lastPurchase);
+            this.#events.dispatchUsersUpdated({ users: await this.#userService.getUsers() });
+
+            if (!persistResult || !persistResult.success) {
+                console.warn('Compra atualizada localmente, mas falha ao persistir no Supabase.', persistResult?.error);
+            }
+        } catch (err) {
+            console.error('Erro ao processar compra:', err);
+            const updatedUser = (await this.#userService.getUserById(user.id)) || { ...user, purchases: [] };
+            updatedUser.purchases.push({ ...product });
+            await this.#userService.updateUser(updatedUser);
+            const lastPurchase = updatedUser.purchases[updatedUser.purchases.length - 1];
+            this.#userView.addPastPurchase(lastPurchase);
+            this.#events.dispatchUsersUpdated({ users: await this.#userService.getUsers() });
+        }
     }
 
     async handlePurchaseRemove({ userId, product }) {
