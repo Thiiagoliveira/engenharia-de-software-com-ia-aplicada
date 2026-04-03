@@ -58,6 +58,7 @@ export class UserController {
         })
 
         await this.#userService.updateUser(updatedUser);
+        this.#userService.addPurchaseToSupabase(user.id, product.id);
 
         const lastPurchase = updatedUser.purchases[updatedUser.purchases.length - 1];
         this.#userView.addPastPurchase(lastPurchase);

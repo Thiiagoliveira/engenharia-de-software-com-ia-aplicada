@@ -4,11 +4,17 @@ export class WorkerController {
     #worker;
     #events;
     #alreadyTrained = false;
+    #products = [];
     constructor({ worker, events }) {
         this.#worker = worker;
         this.#events = events;
         this.#alreadyTrained = false;
         this.init();
+    }
+
+    setProducts(products) {
+        this.#products = products;
+        console.log('products: ', this.#products);
     }
 
     async init() {
@@ -70,7 +76,7 @@ export class WorkerController {
     }
 
     triggerTrain(users) {
-        this.#worker.postMessage({ action: workerEvents.trainModel, users });
+        this.#worker.postMessage({ action: workerEvents.trainModel, users, products: this.#products });
     }
 
     triggerRecommend(user) {

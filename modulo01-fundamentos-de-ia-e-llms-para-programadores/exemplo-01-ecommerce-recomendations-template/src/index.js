@@ -29,6 +29,8 @@ const w = WorkerController.init({
 });
 
 const users = await userService.getDefaultUsers();
+const products = await productService.getProducts();
+w.setProducts(products);
 w.triggerTrain(users);
 
 

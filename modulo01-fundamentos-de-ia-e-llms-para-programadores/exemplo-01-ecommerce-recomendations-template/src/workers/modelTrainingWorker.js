@@ -199,11 +199,10 @@ async function configureNeuralNetAndTrain(trainData) {
     return model;
 }
 
-async function trainModel({ users }) {
+async function trainModel({ users, products }) {
     console.log('Training model with users:', users)
 
     postMessage({ type: workerEvents.progressUpdate, progress: { progress: 50 } });
-    const products = await (await fetch('/data/products.json')).json();
     const context = makeContext(products, users);
     context.productVectors = products.map(product => {
         return {
@@ -263,8 +262,6 @@ function recommend(user) {
 
     const sortedItems = recommendations
         .sort((a, b) => b.score - a.score)
-
-    debugger
 
     console.log('will recommend for user:', user)
     postMessage({
