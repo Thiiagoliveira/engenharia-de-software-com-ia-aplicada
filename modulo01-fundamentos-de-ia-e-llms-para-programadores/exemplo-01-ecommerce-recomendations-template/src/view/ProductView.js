@@ -8,6 +8,7 @@ export class ProductView extends View {
     // Templates and callbacks
     #productTemplate;
     #onBuyProduct;
+    #bodyObserver = null;
 
     constructor() {
         super();
@@ -16,6 +17,10 @@ export class ProductView extends View {
 
     async init() {
         this.#productTemplate = await this.loadTemplate('./src/view/templates/product-card.html');
+        if (window.MutationObserver && !this.#bodyObserver) {
+            this.#bodyObserver = new MutationObserver(() => this._adjustColumns());
+            this.#bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
     }
 
     onUserSelected(user) {
@@ -41,10 +46,31 @@ export class ProductView extends View {
         }).join('');
 
         this.#productList.innerHTML = html;
+        this._adjustColumns();
         this.attachBuyButtonListeners();
 
         // Disable all buttons by default
         this.setButtonsState(disableButtons);
+    }
+
+    _adjustColumns() {
+        const isOpen = document.body.classList.contains('tfvis-open');
+        const desired = isOpen ? 'col-md-4' : 'col-md-3';
+        const els = document.querySelectorAll('.product-col');
+        els.forEach(el => {
+            el.classList.remove('col-md-3', 'col-md-4');
+            el.classList.add(desired);
+        });
+        // adjust header columns for user profile and model training
+        const headerDesired = isOpen ? 'col-md-6' : 'col-md-4';
+        const headerIds = ['userProfileCol', 'modelTrainingCol'];
+        headerIds.forEach(id => {
+            const headerEl = document.getElementById(id);
+            if (headerEl) {
+                headerEl.classList.remove('col-md-4', 'col-md-6');
+                headerEl.classList.add(headerDesired);
+            }
+        });
     }
 
     setButtonsState(disabled) {

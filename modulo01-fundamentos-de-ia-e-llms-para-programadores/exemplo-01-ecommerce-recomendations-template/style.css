@@ -42,7 +42,7 @@ body {
     margin-top: auto;
 }
 
-#productList .col-md-3 {
+#productList .col-md-4 {
     margin-bottom: 20px;
 }
 
@@ -78,4 +78,30 @@ body {
 
 .user-purchases-data {
     transition: max-height 0.3s ease;
+}
+
+/* TFVis sidebar styles */
+.tfvis-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 40%;
+    height: 100%;
+    overflow: auto;
+    background: #ffffff;
+    z-index: 1040;
+    border-left: 1px solid #dee2e6;
+    padding: 12px;
+    box-shadow: -2px 0 6px rgba(0,0,0,0.05);
+}
+
+.tfvis-sidebar .tfvis-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom: 8px;
+}
+
+body.tfvis-open .main {
+    margin-right: 40%;
 }

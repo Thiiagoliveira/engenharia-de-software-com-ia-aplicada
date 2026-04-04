@@ -12,10 +12,16 @@
 
 <body>
     <div class="main">
-        <h1>E-commerce Recommendation System</h1>
+        <div style="display: flex; flex-direction: row; align-items: center;">
+            <h1>E-commerce Recommendation System</h1>
+            <button id="openTrainingBtn" class="btn btn-sm btn-primary" style="display:none; margin-left:12px;"
+                title="Open Training">
+                <i class="bi bi-graph-up"></i>
+            </button>
+        </div>
 
         <div class="row mt-3">
-            <div class="col-md-4">
+            <div id="userProfileCol" class="col-md-6">
                 <div class="card mb-4">
                     <div class="card-header">
                         <h4>User Profile</h4>
@@ -45,7 +51,7 @@
                 </div>
             </div>
 
-            <div class="col-md-4">
+            <div id="modelTrainingCol" class="col-md-6">
                 <div class="card mb-4">
                     <div class="card-header">
                         <h4>Model Training</h4>
