@@ -17,6 +17,48 @@ const elements = {
     year: document.getElementById('year'),
 }
 
+function getLanguageModelApi() {
+    if (typeof LanguageModel !== 'undefined') {
+        return LanguageModel;
+    }
+
+    if (globalThis.ai && globalThis.ai.languageModel) {
+        return globalThis.ai.languageModel;
+    }
+
+    return null;
+}
+
+async function getAvailability(languageModelApi, options) {
+    const attempts = [
+        async () => languageModelApi.availability(options),
+        async () => languageModelApi.availability(),
+    ];
+
+    let lastError = null;
+    for (const attempt of attempts) {
+        try {
+            return await attempt();
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('Falha ao consultar disponibilidade do modelo.');
+}
+
+async function getGenerationParams(languageModelApi) {
+    const defaults = {
+        defaultTemperature: 1,
+        maxTemperature: 2,
+        defaultTopK: 3,
+        maxTopK: 128,
+    };
+
+    // Newer API variants may not expose params(). Keep fixed safe limits.
+    return defaults;
+}
+
 async function setupEventListeners() {
 
     // Update display values for range inputs
@@ -95,19 +137,44 @@ async function* askAI(question, temperature, topK) {
         aiContext.session.destroy();
     }
 
-    const session = await LanguageModel.create({
-        expectedInputLanguages: ["pt"],
-        temperature: temperature,
-        topK: topK,
-        initialPrompts: [
-            {
-                role: 'system', content: `
+    const languageModelApi = getLanguageModelApi();
+    if (!languageModelApi) {
+        throw new Error('API de Language Model não encontrada neste navegador.');
+    }
+
+    const preferredModel = 'nano_v3_gpu_component';
+    let session;
+    try {
+        session = await languageModelApi.create({
+            model: preferredModel,
+            expectedInputLanguages: ["pt"],
+            temperature: temperature,
+            topK: topK,
+            initialPrompts: [
+                {
+                    role: 'system', content: `
                 Você é um assistente de IA que responde de forma clara e objetiva.
                 Responda sempre em formato de texto ao invés de markdown`
 
-            },
-        ],
-    });
+                },
+            ],
+        });
+    } catch (err) {
+        console.warn('Falha ao criar sessão com modelo preferido, tentando sem especificar modelo:', err);
+        session = await languageModelApi.create({
+            expectedInputLanguages: ["pt"],
+            temperature: temperature,
+            topK: topK,
+            initialPrompts: [
+                {
+                    role: 'system', content: `
+                Você é um assistente de IA que responde de forma clara e objetiva.
+                Responda sempre em formato de texto ao invés de markdown`
+
+                },
+            ],
+        });
+    }
 
     const responseStream = await session.promptStreaming(
         [
@@ -132,12 +199,13 @@ async function* askAI(question, temperature, topK) {
 async function checkRequirements() {
     const errors = [];
     const returnResults = () => errors.length ? errors : null;
+    const languageModelApi = getLanguageModelApi();
 
     // @ts-ignore
     const isChrome = !!window.chrome;
     if (!isChrome)
         errors.push("⚠️ Este recurso só funciona no Google Chrome ou Chrome Canary (versão recente).");
-    if (!('LanguageModel' in self)) {
+    if (!languageModelApi) {
         errors.push("⚠️ As APIs nativas de IA não estão ativas.");
         errors.push("Ative a seguinte flag em chrome://flags/:");
         errors.push("- Prompt API for Gemini Nano (chrome://flags/#prompt-api-for-gemini-nano)");
@@ -145,7 +213,7 @@ async function checkRequirements() {
         return returnResults();
     }
 
-    const availability = await LanguageModel.availability({ languages: ["pt"] });
+    const availability = await getAvailability(languageModelApi, { languages: ["pt"] });
     console.log('Language Model Availability:', availability);
     if (availability === 'available') {
         return returnResults();
@@ -162,7 +230,7 @@ async function checkRequirements() {
     if (availability === 'downloadable') {
         errors.push(`⚠️ O modelo de linguagem de IA precisa ser baixado, baixando agora... (acompanhe o progresso no terminal do chrome)`);
         try {
-            const session = await LanguageModel.create({
+            const session = await languageModelApi.create({
                 expectedInputLanguages: ["pt"],
                 monitor(m) {
                     m.addEventListener('downloadprogress', (e) => {
@@ -175,7 +243,7 @@ async function checkRequirements() {
             session.destroy();
 
             // Re-check availability after download
-            const newAvailability = await LanguageModel.availability({ languages: ["pt"] });
+            const newAvailability = await getAvailability(languageModelApi, { languages: ["pt"] });
             if (newAvailability === 'available') {
                 return null; // Download successful
             }
@@ -199,7 +267,8 @@ async function checkRequirements() {
         return;
     }
 
-    const params = await LanguageModel.params();
+    const languageModelApi = getLanguageModelApi();
+    const params = await getGenerationParams(languageModelApi);
     console.log('Language Model Params:', params);
     /*
     defaultTemperature: 1
