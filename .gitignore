@@ -70,6 +70,12 @@ web_modules/
 .env.*
 !.env.example
 
+# Local IDE and shelved changes
+.idea/shelf/Config_supabase.xml
+.idea/shelf/Config_supabase/shelved.patch
+.idea/vcs.xml
+.idea/workspace.xml
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
