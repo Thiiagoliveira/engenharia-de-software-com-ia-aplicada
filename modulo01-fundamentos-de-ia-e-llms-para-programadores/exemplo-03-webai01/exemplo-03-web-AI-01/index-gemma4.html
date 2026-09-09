@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Teste Prompt API</title>
+    <link rel="stylesheet" href="styles-gemma4.css">
+</head>
+<body>
+    <main class="app">
+        <section class="composer">
+            <div class="composer-row">
+                <input id="questionInput" type="text" placeholder="Escreva sua pergunta e pressione Enter" autocomplete="off">
+                <button id="sendBtn" type="button">Enviar</button>
+            </div>
+            <div id="status"></div>
+        </section>
+
+        <section id="conversation" class="conversation"></section>
+    </main>
+
+    <!-- https://www.jsdelivr.com/package/npm/markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown@0.5.0/lib/markdown.min.js"></script>
+    <script src="app-gemma4.js"></script>
+</body>
+</html>

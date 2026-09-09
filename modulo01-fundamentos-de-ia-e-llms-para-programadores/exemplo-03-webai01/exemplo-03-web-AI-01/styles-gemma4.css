@@ -1,0 +1,114 @@
+:root {
+    --bg: #f6f4ef;
+    --panel: #fffdf8;
+    --ink: #1f1d1a;
+    --muted: #6a645c;
+    --accent: #c75d2c;
+    --line: #e9dfd1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: radial-gradient(circle at 20% 10%, #fff6e9 0%, var(--bg) 45%, #efe8dc 100%);
+    color: var(--ink);
+    min-height: 100vh;
+}
+
+.app {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 20px 14px 28px;
+}
+
+.composer {
+    position: sticky;
+    top: 10px;
+    z-index: 2;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 8px 24px rgba(31, 29, 26, 0.08);
+    display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.composer-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+#questionInput {
+    width: 100%;
+    border: 1px solid #d8ccbb;
+    border-radius: 10px;
+    padding: 11px 12px;
+    font-size: 15px;
+    background: #fff;
+    color: var(--ink);
+}
+
+#questionInput:focus {
+    outline: 2px solid #f0c8af;
+    border-color: var(--accent);
+}
+
+#sendBtn {
+    border: 0;
+    border-radius: 10px;
+    padding: 0 14px;
+    min-height: 42px;
+    background: linear-gradient(135deg, #d46f42, var(--accent));
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#sendBtn:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+#status {
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+}
+
+.conversation {
+    display: grid;
+    gap: 12px;
+}
+
+.turn {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 4px 16px rgba(31, 29, 26, 0.06);
+}
+
+.label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a4f2f;
+    margin-bottom: 6px;
+}
+
+.user {
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+}
+
+.assistant {
+    border-top: 1px dashed #e4d8c8;
+    padding-top: 10px;
+    min-height: 24px;
+}
