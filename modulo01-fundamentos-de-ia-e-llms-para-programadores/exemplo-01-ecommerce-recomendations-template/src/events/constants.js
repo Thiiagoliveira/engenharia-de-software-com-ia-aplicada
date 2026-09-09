@@ -19,4 +19,10 @@ export const workerEvents = {
     progressUpdate: 'progress:update',
     tfVisData: 'tfvis:data',
     tfVisLogs: 'tfvis:logs',
+    // persistência de vetores no banco
+    vectorsSave: 'vectors:save',
+    vectorsLoad: 'vectors:load',
+    // busca de candidatos em 2 etapas (pgvector → reranking pelo modelo)
+    userVectorReady: 'user:vector-ready',
+    rankCandidates: 'rank:candidates',
 }

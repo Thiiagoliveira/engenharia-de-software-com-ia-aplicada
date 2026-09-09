@@ -72,9 +72,21 @@ function makeContext(products, users) {
         maxPrice,
         numCategories: categories.length,
         numColors: colors.length,
+        // price + age + categories + colors
         dimentions: 2 + categories.length + colors.length
     }
 }
+
+// Usado quando o modelo não está disponível (vetores carregados do banco)
+const cosineSimilarity = (a, b) => {
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+};
 
 const oneHotWeighted = (index, length, weight) =>
     tf.oneHot(index, length).cast('float32').mul(weight);
@@ -218,64 +230,96 @@ async function trainModel({ users, products }) {
     _model = await configureNeuralNetAndTrain(trainData);
 
     postMessage({ type: workerEvents.progressUpdate, progress: { progress: 100 } });
+
+    // Notifica a thread principal para persistir vetores e contexto no banco
+    postMessage({
+        type: workerEvents.vectorsSave,
+        productVectors: context.productVectors.map(pv => ({
+            ...pv,
+            vector: Array.from(pv.vector)
+        })),
+        contextMeta: {
+            minAge: context.minAge,
+            maxAge: context.maxAge,
+            minPrice: context.minPrice,
+            maxPrice: context.maxPrice,
+            colorsIndex: context.colorsIndex,
+            categoriesIndex: context.categoriesIndex,
+            productAvgAgeNorm: context.productAvgAgeNorm,
+            numCategories: context.numCategories,
+            numColors: context.numColors,
+            dimentions: context.dimentions
+        }
+    });
+
     postMessage({ type: workerEvents.trainingComplete });
 }
 
+// Restaura contexto do banco, pulando o treino
+function loadVectors({ productVectors, contextMeta }) {
+    _globalCtx = {
+        ...contextMeta,
+        products: [],
+        users: [],
+        productVectors: productVectors.map(pv => ({
+            name: pv.name,
+            meta: pv.meta,
+            vector: new Float32Array(pv.vector)
+        }))
+    };
+}
+
 function recommend(user) {
-    if (!_model) return;
-
     const context = _globalCtx;
+    if (!context?.productVectors?.length) return;
 
-    // 1️⃣ Converta o usuário fornecido no vetor features codificadas;
-    //  (preço, ignorado), idade normalizada, categorias ignoradas, cores ignoradas)
-    //  Isso transforma as informações do usuário no mesmo formato número que foi usado para treinar o modelo, 
-    //  permitindo que ele faça previsões precisas com base no histórico de compras do usuário e nas características dos produtos.
-    const userVector = encodeUser(user, context).dataSync()
+    const userVector = encodeUser(user, context).dataSync();
 
-    // 2️⃣ Crie pares de entrada: Para cada produto, concatene o vetor do usuário
-    //  com o vetor codificado do produto. Por que? o modelo prevê o "score de compatibilidade" para cada par (usuario, produto);
-    const inputs = context.productVectors.map(({ vector }) => {
-        return [...userVector, ...vector]
-    });
+    if (_model) {
+        // 2 etapas: envia vetor do usuário para a thread principal buscar candidatos via pgvector
+        postMessage({
+            type: workerEvents.userVectorReady,
+            user,
+            userVector: Array.from(userVector)
+        });
+        return;
+    }
 
-    // 3️⃣ Converta todos esses pares (usuário, produto) em um único Tensor.
-    //  Formato: [numProdutos, inputDim]
-    const inputTensor = tf.tensor2d(inputs)
-
-    // 4️⃣ Rode a rede neural treinada em todos os pares (usuário, produto) de uma vez.
-    //  O resultado é uma pontuação para cada produto entre 0 e 1.
-    //  Quanto maior, maior a probabilidade do usuário querer aquele produto.
-    const predictions = _model.predict(inputTensor)
-
-    // 5️⃣ Extraia as pontuações para um array JS normal.
-    const scores = predictions.dataSync()
-
-    // 8️⃣ Envie a lista ordenada de produtos recomendados
-    //    para a thread principal (a UI pode exibi-los agora).
-    const recommendations = context.productVectors.map((item, index) => {
-        return {
+    // fallback: cosine similarity direto no worker (sem modelo, vetores carregados do banco)
+    const recommendations = context.productVectors
+        .map(item => ({
             ...item.meta,
             name: item.name,
-            score: scores[index] // previsão do modelo para este produto
-        }
-    })
+            score: cosineSimilarity(userVector, item.vector)
+        }))
+        .sort((a, b) => b.score - a.score);
 
-    const sortedItems = recommendations
-        .sort((a, b) => b.score - a.score)
+    console.log('will recommend for user (cosine):', user);
+    postMessage({ type: workerEvents.recommend, user, recommendations });
+}
 
-    console.log('will recommend for user:', user)
-    postMessage({
-        type: workerEvents.recommend,
-        user,
-        recommendations: sortedItems
-    });
+// Etapa 2: recebe candidatos pré-filtrados pelo pgvector e reranqueia com o modelo
+function rankCandidates({ user, candidates }) {
+    const context = _globalCtx;
+    const userVector = encodeUser(user, context).dataSync();
 
+    const inputs = candidates.map(({ vector }) => [...userVector, ...vector]);
+    const scores = _model.predict(tf.tensor2d(inputs)).dataSync();
+
+    const recommendations = candidates
+        .map((item, i) => ({ ...item.meta, name: item.name, score: scores[i] }))
+        .sort((a, b) => b.score - a.score);
+
+    console.log('will recommend for user (ranked):', user);
+    postMessage({ type: workerEvents.recommend, user, recommendations });
 }
 
 
 const handlers = {
     [workerEvents.trainModel]: trainModel,
-    [workerEvents.recommend]: d => recommend(d.user, _globalCtx),
+    [workerEvents.recommend]: d => recommend(d.user),
+    [workerEvents.vectorsLoad]: loadVectors,
+    [workerEvents.rankCandidates]: rankCandidates,
 };
 
 self.onmessage = e => {
