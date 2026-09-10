@@ -174,6 +174,68 @@ export class AIService {
         return null;
     }
 
+    extractMarkdownImageReferences(markdownText) {
+        const refs = [];
+        const regex = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+        let match;
+
+        while ((match = regex.exec(markdownText)) !== null) {
+            const rawRef = (match[1] || '').trim();
+            const normalized = rawRef.replace(/^<|>$/g, '');
+            if (normalized) {
+                refs.push(normalized);
+            }
+        }
+
+        return [...new Set(refs)];
+    }
+
+    async loadImageBlobFromMarkdownReference(reference) {
+        const isDataImage = reference.startsWith('data:image/');
+        const isHttp = /^https?:\/\//i.test(reference);
+
+        if (!isDataImage && !isHttp) {
+            return { blob: null, reason: 'relative-path-not-supported' };
+        }
+
+        try {
+            const response = await fetch(reference);
+            if (!response.ok) {
+                return { blob: null, reason: `http-${response.status}` };
+            }
+
+            const blob = await response.blob();
+            if (!blob.type.startsWith('image/')) {
+                return { blob: null, reason: 'not-an-image' };
+            }
+
+            return { blob, reason: null };
+        } catch (error) {
+            return { blob: null, reason: error?.message || 'fetch-failed' };
+        }
+    }
+
+    async extractImagesFromMarkdown(markdownText, maxImages = 3) {
+        const references = this.extractMarkdownImageReferences(markdownText);
+        const imageBlobs = [];
+        const unresolved = [];
+
+        for (const reference of references.slice(0, maxImages)) {
+            const { blob, reason } = await this.loadImageBlobFromMarkdownReference(reference);
+            if (blob) {
+                imageBlobs.push(blob);
+            } else {
+                unresolved.push({ reference, reason });
+            }
+        }
+
+        if (references.length > maxImages) {
+            unresolved.push({ reference: `${references.length - maxImages} image(s) skipped`, reason: 'limit-exceeded' });
+        }
+
+        return { imageBlobs, unresolved };
+    }
+
     async* createSession(question, temperature, topK, file = null) {
         this.abortController?.abort();
         this.abortController = new AbortController();
@@ -226,6 +288,27 @@ export class AIService {
                     const fileContext = `Attached file (${file.name}) content:\n${limitedText}`;
                     contentArray.push({ type: 'text', value: fileContext });
                     console.log('Adding text/document content to prompt:', file.name);
+
+                    if (this.isMarkdownFile(file)) {
+                        const { imageBlobs, unresolved } = await this.extractImagesFromMarkdown(extractedText);
+                        for (const imageBlob of imageBlobs) {
+                            contentArray.push({ type: 'image', value: imageBlob });
+                        }
+
+                        if (imageBlobs.length > 0) {
+                            console.log(`Added ${imageBlobs.length} markdown image(s) to prompt.`);
+                        }
+
+                        if (unresolved.length > 0) {
+                            const unresolvedList = unresolved
+                                .map((item) => `- ${item.reference} (${item.reason})`)
+                                .join('\n');
+                            contentArray.push({
+                                type: 'text',
+                                value: `Some markdown images could not be attached:\n${unresolvedList}`
+                            });
+                        }
+                    }
                 }
             }
         }
