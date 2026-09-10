@@ -106,6 +106,10 @@ export class View {
             audio.controls = true;
             audio.className = 'preview-audio';
             fileInfo.appendChild(audio);
+        } else {
+            const textInfo = document.createElement('p');
+            textInfo.textContent = `Arquivo de texto/documento anexado: ${file.name}`;
+            fileInfo.appendChild(textInfo);
         }
 
         const removeBtn = document.createElement('button');

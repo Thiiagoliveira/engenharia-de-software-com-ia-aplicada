@@ -131,6 +131,49 @@ export class AIService {
         }
     }
 
+    isMarkdownFile(file) {
+        const name = (file?.name || '').toLowerCase();
+        return file?.type === 'text/markdown' || name.endsWith('.md');
+    }
+
+    isWordFile(file) {
+        const name = (file?.name || '').toLowerCase();
+        return file?.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            || file?.type === 'application/msword'
+            || name.endsWith('.docx')
+            || name.endsWith('.doc');
+    }
+
+    async extractTextFromFile(file) {
+        const fileName = file?.name || 'arquivo';
+        const name = fileName.toLowerCase();
+
+        if (this.isMarkdownFile(file)) {
+            return await file.text();
+        }
+
+        if (this.isWordFile(file)) {
+            if (name.endsWith('.doc')) {
+                throw new Error('Arquivo .doc nao suportado. Salve como .docx para enviar o conteudo como texto.');
+            }
+
+            const mammothApi = globalThis.mammoth;
+            if (!mammothApi || typeof mammothApi.extractRawText !== 'function') {
+                throw new Error('Parser de Word nao carregado. Recarregue a pagina e tente novamente.');
+            }
+
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammothApi.extractRawText({ arrayBuffer });
+            const extracted = (result?.value || '').trim();
+            if (!extracted) {
+                throw new Error('Nao foi possivel extrair texto do arquivo Word.');
+            }
+            return extracted;
+        }
+
+        return null;
+    }
+
     async* createSession(question, temperature, topK, file = null) {
         this.abortController?.abort();
         this.abortController = new AbortController();
@@ -176,6 +219,14 @@ export class AIService {
                 const blob = new Blob([await file.arrayBuffer()], { type: file.type });
                 contentArray.push({ type: fileType, value: blob });
                 console.log(`Adding ${fileType} to prompt:`, file.name);
+            } else {
+                const extractedText = await this.extractTextFromFile(file);
+                if (extractedText) {
+                    const limitedText = extractedText.slice(0, 12000);
+                    const fileContext = `Attached file (${file.name}) content:\n${limitedText}`;
+                    contentArray.push({ type: 'text', value: fileContext });
+                    console.log('Adding text/document content to prompt:', file.name);
+                }
             }
         }
 

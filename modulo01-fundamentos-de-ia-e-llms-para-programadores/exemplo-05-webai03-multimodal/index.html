@@ -30,9 +30,9 @@
             </div>
 
             <div class="file-input-group">
-                <label>📎 Anexar Arquivo (Imagem ou Áudio em inglês):</label>
+                <label>📎 Anexar Arquivo (Imagem, Áudio, Markdown ou Word):</label>
                 <div class="file-input-wrapper">
-                    <input type="file" id="file-input" accept="image/*,audio/*" hidden>
+                    <input type="file" id="file-input" accept="image/*,audio/*,.md,text/markdown,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
                     <button type="button" class="file-upload-btn" id="file-upload-btn">
                         <span class="upload-icon">📁</span>
                         <span class="upload-text">Escolher arquivo</span>
@@ -55,6 +55,7 @@
         </footer>
     </div>
 
+    <script src="./node_modules/mammoth/mammoth.browser.min.js"></script>
     <script type="module" src="./index.js"></script>
 </body>
 
