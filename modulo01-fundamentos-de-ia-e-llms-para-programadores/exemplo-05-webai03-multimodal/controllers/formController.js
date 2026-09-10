@@ -58,6 +58,13 @@ export class FormController {
         this.view.setOutput('Processing your question...');
 
         try {
+            // Translation APIs may require user gesture for first-time downloads.
+            try {
+                await this.translationService.initialize();
+            } catch (translationInitError) {
+                console.warn('Translation init warning:', translationInitError);
+            }
+
             const aiResponseChunks = await this.aiService.createSession(
                 question,
                 temperature,

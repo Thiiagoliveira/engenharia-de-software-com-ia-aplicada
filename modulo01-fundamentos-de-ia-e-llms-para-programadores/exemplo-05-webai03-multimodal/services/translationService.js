@@ -2,9 +2,27 @@ export class TranslationService {
     constructor() {
         this.translator = null;
         this.languageDetector = null;
+        this.initializingPromise = null;
     }
 
     async initialize() {
+        if (this.translator && this.languageDetector) {
+            return true;
+        }
+
+        if (this.initializingPromise) {
+            return this.initializingPromise;
+        }
+
+        this.initializingPromise = this.#initializeInternal();
+        try {
+            return await this.initializingPromise;
+        } finally {
+            this.initializingPromise = null;
+        }
+    }
+
+    async #initializeInternal() {
         try {
             this.translator = await Translator.create({
                 sourceLanguage: 'en',
@@ -24,6 +42,9 @@ export class TranslationService {
             return true;
         } catch (error) {
             console.error('Error initializing translation:', error);
+            if (error && error.name === 'NotAllowedError') {
+                throw new Error('⚠️ Tradução requer gesto do usuário. Clique em Enviar para iniciar o download e tente novamente.');
+            }
             throw new Error('⚠️ Erro ao inicializar APIs de tradução.');
         }
     }

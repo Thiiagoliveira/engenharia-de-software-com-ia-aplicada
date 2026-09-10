@@ -4,8 +4,39 @@ export class AIService {
         this.abortController = null;
     }
 
+    getLanguageModelApi() {
+        if (typeof LanguageModel !== 'undefined') {
+            return LanguageModel;
+        }
+
+        if (globalThis.ai && globalThis.ai.languageModel) {
+            return globalThis.ai.languageModel;
+        }
+
+        return null;
+    }
+
+    async getAvailability(languageModelApi, options) {
+        const attempts = [
+            async () => languageModelApi.availability(options),
+            async () => languageModelApi.availability(),
+        ];
+
+        let lastError = null;
+        for (const attempt of attempts) {
+            try {
+                return await attempt();
+            } catch (error) {
+                lastError = error;
+            }
+        }
+
+        throw lastError || new Error('Falha ao consultar disponibilidade do modelo.');
+    }
+
     async checkRequirements() {
         const errors = [];
+        const languageModelApi = this.getLanguageModelApi();
 
         // @ts-ignore
         const isChrome = !!window.chrome;
@@ -13,7 +44,7 @@ export class AIService {
             errors.push("⚠️ Este recurso só funciona no Google Chrome ou Chrome Canary (versão recente).");
         }
 
-        if (!('LanguageModel' in self)) {
+        if (!languageModelApi) {
             errors.push("⚠️ As APIs nativas de IA não estão ativas.");
             errors.push("Ative a seguinte flag em chrome://flags/:");
             errors.push("- Prompt API for Gemini Nano (chrome://flags/#prompt-api-for-gemini-nano)");
@@ -49,7 +80,7 @@ export class AIService {
             return errors;
         }
 
-        const availability = await LanguageModel.availability({ languages: ["en"] });
+        const availability = await this.getAvailability(languageModelApi, { languages: ["en"] });
         console.log('Language Model Availability:', availability);
 
         if (availability === 'available') {
@@ -61,42 +92,43 @@ export class AIService {
         }
 
         if (availability === 'downloading') {
-            errors.push(`⚠️ O modelo de linguagem de IA está sendo baixado. Por favor, aguarde alguns minutos e tente novamente.`);
+            return null;
         }
 
         if (availability === 'downloadable') {
-            errors.push(`⚠️ O modelo de linguagem de IA precisa ser baixado, baixando agora... (acompanhe o progresso no terminal do chrome)`);
-            try {
-                const session = await LanguageModel.create({
-                    expectedInputLanguages: ["en"],
-                    monitor(m) {
-                        m.addEventListener('downloadprogress', (e) => {
-                            const percent = ((e.loaded / e.total) * 100).toFixed(0);
-                            console.log(`Downloaded ${percent}%`);
-                        });
-                    }
-                });
-                await session.prompt('Hello');
-                session.destroy();
-
-                // Re-check availability after download
-                const newAvailability = await LanguageModel.availability({ languages: ["en"] });
-                if (newAvailability === 'available') {
-                    return null; // Download successful
-                }
-            } catch (error) {
-                console.error('Error downloading model:', error);
-                errors.push(`⚠️ Erro ao baixar o modelo: ${error.message}`);
-            }
+            return null;
         }
 
         return errors.length > 0 ? errors : null;
     }
 
     async getParams() {
-        const params = await LanguageModel.params();
-        console.log('Language Model Params:', params);
-        return params;
+        const defaults = {
+            defaultTemperature: 1,
+            maxTemperature: 2,
+            defaultTopK: 3,
+            maxTopK: 128,
+        };
+
+        const languageModelApi = this.getLanguageModelApi();
+        if (!languageModelApi || typeof languageModelApi.params !== 'function') {
+            console.warn('LanguageModel.params() indisponivel. Usando padrao.');
+            return defaults;
+        }
+
+        try {
+            const params = await languageModelApi.params();
+            console.log('Language Model Params:', params);
+            return {
+                defaultTemperature: params?.defaultTemperature ?? defaults.defaultTemperature,
+                maxTemperature: params?.maxTemperature ?? defaults.maxTemperature,
+                defaultTopK: params?.defaultTopK ?? defaults.defaultTopK,
+                maxTopK: params?.maxTopK ?? defaults.maxTopK,
+            };
+        } catch (error) {
+            console.warn('Falha ao obter params(). Usando padrao.', error);
+            return defaults;
+        }
     }
 
     async* createSession(question, temperature, topK, file = null) {
@@ -108,7 +140,12 @@ export class AIService {
             this.session.destroy();
         }
 
-        this.session = await LanguageModel.create({
+        const languageModelApi = this.getLanguageModelApi();
+        if (!languageModelApi) {
+            throw new Error('API de Language Model nao encontrada neste navegador.');
+        }
+
+        this.session = await languageModelApi.create({
             expectedInputs: [
                 { type: "text", languages: ["en"] },
                 { type: "audio" },
